@@ -38,6 +38,7 @@ It provides real-time ADS-B target tracking, dead-reckoned vector prediction, ex
 | **Enclosure** | 3D-Printed Desktop Stand | Parametric OpenSCAD design in `/cad` directory |
 | **Audio** | USB DAC or 3.5mm Output | Stereo speakers or headphones for spatial separation |
 | **Storage** | 16 GB+ MicroSD | Raspberry Pi OS Lite (64-bit recommended) |
+| **Connections** | Micro USB OTG cable, Mini HDMI Cable, USB A to USB C cable | For connecting the Raspberry Pi to the display
 | **Power** | 5V 2.5A+ Micro-USB / USB-C | Clean power supply to prevent undervoltage blips |
 
 ---
