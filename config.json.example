@@ -1,0 +1,39 @@
+{
+  "sector": {
+    "title": "TRACON TERMINAL RADAR - REGIONAL SECTOR",
+    "center_lat": 37.9300,
+    "center_lon": -86.1790,
+    "poll_radius_nm": 65,
+    "ranges_nm": [60, 45, 30, 15]
+  },
+  "display": {
+    "width": 1920,
+    "height": 1280,
+    "fps": 30,
+    "digitizer_max_x": 4095,
+    "digitizer_max_y": 4095
+  },
+  "audio_streams": [
+    {
+      "id": "app",
+      "label": "APP",
+      "mount": "ksdf_app_1",
+      "pan": "lavfi=[pan=stereo|c0=c0|c1=0*c0]",
+      "sock": "/tmp/mpv_app.sock"
+    },
+    {
+      "id": "twr",
+      "label": "TWR",
+      "mount": "ksdf_twr",
+      "pan": "lavfi=[pan=stereo|c0=0.7*c0|c1=0.7*c0]",
+      "sock": "/tmp/mpv_twr.sock"
+    },
+    {
+      "id": "sec",
+      "label": "SEC",
+      "mount": "ksdf_app_2",
+      "pan": "lavfi=[pan=stereo|c0=0*c0|c1=c0]",
+      "sock": "/tmp/mpv_sec.sock"
+    }
+  ]
+}

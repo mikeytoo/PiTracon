@@ -1,0 +1,17 @@
+[Unit]
+Description=PiTracon Tactical Radar Appliance
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/pi/PiTracon
+ExecStart=/home/pi/PiTracon/start-pitracon.sh
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,20 @@
+# Local configuration
+config.json
+
+# Persistent cache files & live data
+type_cache.json
+atc_status.json
+atc_status.json.tmp
+
+# IPC sockets & temp files
+*.sock
+*.tmp
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS / Editor artifacts
+.DS_Store
+Thumbs.db
