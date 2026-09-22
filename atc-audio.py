@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-import subprocess, time, threading, socket, json, os, urllib.request
+import subprocess, time, threading, json, os, urllib.request
 
+# Define your desired mounts. Add as many as you want and assign their spatial role.
 FEEDS = [
-    {"id": "app", "sock": "/tmp/mpv_app.sock", "mount": "ksdf_app_1", "pan": "lavfi=[pan=stereo|c0=c0|c1=0]"},
-    {"id": "twr", "sock": "/tmp/mpv_twr.sock", "mount": "ksdf_twr",   "pan": "lavfi=[pan=stereo|c0=0.7*c0|c1=0.7*c0]"},
-    {"id": "sec", "sock": "/tmp/mpv_sec.sock", "mount": "ksdf_app_2", "pan": "lavfi=[pan=stereo|c0=0|c1=c0]"}
+    {"role": "left",   "mount": "ksdf_app_1"}, # SDF Approach
+    {"role": "center", "mount": "ksdf_twr"},   # SDF Tower
+    {"role": "right",  "mount": "kind9_zid_125125"}, # Indy Center High
+#    {"role": "right",  "mount": "INSERT_ZID_MOUNT_2"}, # Indy Center Low
 ]
 
 STATE_FILE = "/tmp/atc_status.json"
 status_lock = threading.Lock()
-feed_statuses = {f["id"]: "down" for f in FEEDS}
 
 def resolve_stream_url(mount):
     pls_url = f"https://www.liveatc.net/play/{mount}.pls"
@@ -24,79 +25,66 @@ def resolve_stream_url(mount):
         pass
     return f"https://s1-fmt2.liveatc.net/{mount}"
 
-def audio_worker(feed):
-    stream_id = feed["id"]
-    sock_path = feed["sock"]
-    mount = feed["mount"]
-    pan_filter = feed["pan"]
-
-    while True:
-        if os.path.exists(sock_path):
-            try:
-                os.remove(sock_path)
-            except Exception:
-                pass
-
-        with status_lock:
-            feed_statuses[stream_id] = "down"
-
-        url = resolve_stream_url(mount)
-        cmd = [
-            "mpv",
-            "--no-video",
-            "--idle=yes",
-            "--ao=alsa",
-            "--alsa-mixer-device=default",
-            f"--input-ipc-server={sock_path}",
-            f"--af={pan_filter}",
-            "--audio-buffer=0.4",
-            "--network-timeout=10",
-            "--user-agent=Mozilla/5.0",
-            url
-        ]
-
+def write_status(state):
+    # Hardcoded to keep your Pygame UI buttons happy regardless of feed count
+    with status_lock:
+        feed_statuses = {"app": state, "twr": state, "sec": state}
         try:
-            proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            time.sleep(1.5)
-
-            while proc.poll() is None:
-                is_alive = False
-
-                if os.path.exists(sock_path):
-                    try:
-                        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-                            client.settimeout(0.3)
-                            client.connect(sock_path)
-
-                            # Direct ping using core-idle property
-                            msg = json.dumps({"command": ["get_property", "core-idle"]}) + "\n"
-                            client.sendall(msg.encode('utf-8'))
-                            resp = client.recv(1024).decode('utf-8')
-                            if resp and "error" in resp and '"error":"success"' in resp:
-                                is_alive = True
-                    except Exception:
-                        is_alive = False
-
-                with status_lock:
-                    feed_statuses[stream_id] = "idle" if is_alive else "down"
-                    try:
-                        with open(STATE_FILE + ".tmp", "w") as sf:
-                            json.dump(feed_statuses, sf)
-                        os.replace(STATE_FILE + ".tmp", STATE_FILE)
-                    except Exception:
-                        pass
-
-                time.sleep(0.3)
-
-            proc.wait()
+            with open(STATE_FILE + ".tmp", "w") as sf:
+                json.dump(feed_statuses, sf)
+            os.replace(STATE_FILE + ".tmp", STATE_FILE)
         except Exception:
             pass
 
-        time.sleep(2.0)
+def audio_worker():
+    while True:
+        write_status("down")
+        
+        # Resolve all URLs
+        urls = [resolve_stream_url(f["mount"]) for f in FEEDS]
+        
+        # Dynamically build the ffmpeg command and filter graph
+        ffmpeg_cmd = ["ffmpeg", "-nostats", "-hide_banner"]
+        filter_parts = []
+        amix_inputs = []
+        
+        for idx, f in enumerate(FEEDS):
+            ffmpeg_cmd.extend(["-i", urls[idx]])
+            
+            if f["role"] == "left":
+                pan = "c0=c0"
+            elif f["role"] == "right":
+                pan = "c1=c0"
+            else: # center
+                pan = "c0=0.7*c0|c1=0.7*c0"
+                
+            filter_parts.append(f"[{idx}:a]pan=stereo|{pan}[a{idx}]")
+            amix_inputs.append(f"[a{idx}]")
+            
+        amix_str = "".join(amix_inputs) + f"amix=inputs={len(FEEDS)}:duration=longest:dropout_transition=0[out]"
+        filter_complex = "; ".join(filter_parts) + "; " + amix_str
+        
+        ffmpeg_cmd.extend([
+            "-filter_complex", filter_complex,
+            "-map", "[out]",
+            "-f", "alsa", "default"
+        ])
+        
+        try:
+            proc = subprocess.Popen(ffmpeg_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            time.sleep(2.0)
+            
+            while proc.poll() is None:
+                write_status("idle")
+                time.sleep(1.0)
+                
+        except Exception:
+            pass
+            
+        time.sleep(3.0)
 
-for f in FEEDS:
-    t = threading.Thread(target=audio_worker, args=(f,), daemon=True)
-    t.start()
+t = threading.Thread(target=audio_worker, daemon=True)
+t.start()
 
 while True:
     time.sleep(1.0)
