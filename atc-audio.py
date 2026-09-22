@@ -61,7 +61,7 @@ def audio_worker():
             filter_parts.append(f"[{idx}:a]pan=stereo|{pan}[a{idx}]")
             amix_inputs.append(f"[a{idx}]")
             
-        amix_str = "".join(amix_inputs) + f"amix=inputs={len(FEEDS)}:duration=longest:dropout_transition=0[out]"
+        amix_str = "".join(amix_inputs) + f"amix=inputs={len(FEEDS)}:duration=longest:dropout_transition=0,volume=4.0[out]"
         filter_complex = "; ".join(filter_parts) + "; " + amix_str
         
         ffmpeg_cmd.extend([
