@@ -203,6 +203,21 @@ def toggle_mpv_mute(btn_key):
         except Exception:
             pass
 
+
+def trigger_audio_test(btn_key):
+    def _worker():
+        try:
+            if btn_key == 'APP':
+                cmd = ['speaker-test', '-D', 'default', '-c', '2', '-s', '1', '-f', '500', '-P', '2', '-l', '1', '-t', 'sine']
+            elif btn_key == 'SEC':
+                cmd = ['speaker-test', '-D', 'default', '-c', '2', '-s', '2', '-f', '700', '-P', '2', '-l', '1', '-t', 'sine']
+            else:
+                cmd = ['speaker-test', '-D', 'default', '-c', '2', '-f', '880', '-P', '2', '-l', '1', '-t', 'sine']
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+    threading.Thread(target=_worker, daemon=True).start()
+
 # --- Fast System Diagnostics ---
 sys_stats = {"cpu": "0%", "temp": "0C", "mem": "0/0MB", "disk": "0GB", "wifi": "OFFLINE"}
 prev_idle, prev_total = 0, 0
@@ -540,7 +555,10 @@ while running:
             btn_hit = False
             for k, btn in comm_buttons.items():
                 if btn["rect"].collidepoint(tx, ty):
-                    toggle_mpv_mute(k)
+                    if show_sys_card:
+                        trigger_audio_test(k)
+                    else:
+                        toggle_mpv_mute(k)
                     btn_hit = True
                     break
             if btn_hit:
@@ -766,7 +784,8 @@ while running:
             f"CPU:  {sys_stats['cpu']} @ {sys_stats['temp']}",
             f"RAM:  {sys_stats['mem']}",
             f"DISK: {sys_stats['disk']} USED",
-            f"WIFI: {sys_stats['wifi']}"
+            f"WIFI: {sys_stats['wifi']}",
+            "TEST: TAP APP/TWR/SEC"
         ]
         for idx, l in enumerate(lines):
             screen.blit(font_sys_body.render(l, True, (180, 230, 240)), (SYS_CARD_RECT.x + 18, SYS_CARD_RECT.y + 55 + idx * 30))
