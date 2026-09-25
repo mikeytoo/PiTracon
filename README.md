@@ -90,6 +90,49 @@ For full step-by-step instructions, see the **[Installation Guide (INSTALL.md)](
 * **Target Flight Strip (Bottom Left):** Tap any active target on the radar scope to pin and inspect speed, altitude, heading, distance, and airframe specs. Tap the strip card to collapse it.
 * **Standby / Power Control (Bottom Right):** Press and hold the `STANDBY` button for 2 full seconds to trigger an orderly Linux system shutdown.
 
+## System Requirements
+This project uses `mpv` via ALSA for isolated, non-blocking audio streams. 
+
+Install the required dependencies:
+\`\`\`bash
+sudo apt update
+sudo apt install mpv python3-pygame python3-evdev
+\`\`\`
+
+## Background Audio Service (systemd)
+To ensure the ATC audio mixer runs continuously in the background and restarts on failure, create a systemd service.
+
+1. Create the service file:
+\`\`\`bash
+sudo nano /etc/systemd/system/atc-audio.service
+\`\`\`
+
+2. Paste the following configuration (verify your paths):
+\`\`\`ini
+[Unit]
+Description=ATC Audio MPV Controller
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Environment="XDG_RUNTIME_DIR=/run/user/1000"
+WorkingDirectory=/home/pi/PiTracon
+ExecStart=/usr/bin/python3 /home/pi/PiTracon/atc-audio.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+\`\`\`
+
+3. Enable and start the service:
+\`\`\`bash
+sudo systemctl daemon-reload
+sudo systemctl enable atc-audio.service
+sudo systemctl start atc-audio.service
+\`\`\`
 ---
 
 ## License
