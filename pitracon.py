@@ -29,19 +29,25 @@ C_LEADER       = (0, 210, 110)
 C_STRIP_BG     = (16, 26, 22)
 C_STRIP_BORDER = (0, 230, 120)
 
-C_BTN_ON_BG    = (14, 40, 25)
-C_BTN_ON_TXT   = (0, 255, 130)
-C_BTN_MUT_BG   = (45, 15, 15)
-C_BTN_MUT_TXT  = (255, 70, 70)
+# Idle / Standby (Tactical Blue)
+C_BTN_IDLE_BG  = (0, 17, 51)
+C_BTN_IDLE_TXT = (51, 153, 255)
+C_BTN_IDLE_BDR = (0, 68, 136)
 
-# Live RF Comm Status Colors
-C_COMM_TX_BG   = (15, 45, 65)
-C_COMM_TX_TXT  = (0, 215, 255)
-C_COMM_TX_BDR  = (0, 180, 255)
+# Muted State (Tactical Red)
+C_BTN_MUT_BG   = (51, 17, 17)
+C_BTN_MUT_TXT  = (255, 102, 102)
+C_BTN_MUT_BDR  = (85, 34, 34)
 
-C_COMM_DOWN_BG  = (50, 42, 10)
-C_COMM_DOWN_TXT = (255, 205, 50)
-C_COMM_DOWN_BDR = (230, 170, 0)
+# Live RF Comm Receiving (Green)
+C_COMM_RX_BG   = (0, 51, 0)
+C_COMM_RX_TXT  = (0, 255, 0)
+C_COMM_RX_BDR  = (0, 255, 0)
+
+# Feed Down / Error (Amber)
+C_COMM_DOWN_BG  = (51, 34, 0)
+C_COMM_DOWN_TXT = (255, 170, 0)
+C_COMM_DOWN_BDR = (102, 68, 0)
 
 # --- Common Airframe Decode Table (Instant 0ms cache) ---
 TYPE_DECODE_TABLE = {
@@ -202,7 +208,6 @@ def toggle_mpv_mute(btn_key):
                 client.sendall(msg.encode('utf-8'))
         except Exception:
             pass
-
 
 def trigger_audio_test(btn_key):
     def _worker():
@@ -706,7 +711,7 @@ while running:
     screen.blit(range_lbl, (RANGE_BTN_RECT.x + (RANGE_BTN_RECT.width - range_lbl.get_width()) // 2,
                             RANGE_BTN_RECT.y + (RANGE_BTN_RECT.height - range_lbl.get_height()) // 2))
 
-    # Ingest live RF transmit/down states
+    # Ingest live RF status
     live_comm_states = {}
     if os.path.exists("/tmp/atc_status.json"):
         try:
@@ -721,27 +726,28 @@ while running:
         live_st = live_comm_states.get(key_id, "down")
 
         if is_mut:
+            # Red when muted
             bg_col = C_BTN_MUT_BG
             txt_col = C_BTN_MUT_TXT
-            bdr_col = (180, 40, 40)
+            bdr_col = C_BTN_MUT_BDR
             lbl_text = f"{name}: MUT"
-        elif live_st == "tx":
-            # Active RF transmission / squelch break (Cyan / Blue)
-            bg_col = C_COMM_TX_BG
-            txt_col = C_COMM_TX_TXT
-            bdr_col = C_COMM_TX_BDR
-            lbl_text = f"{name}: TX"
+        elif live_st in ("active", "rx", "tx"):
+            # Green when receiving audio (RX)
+            bg_col = C_COMM_RX_BG
+            txt_col = C_COMM_RX_TXT
+            bdr_col = C_COMM_RX_BDR
+            lbl_text = f"{name}: RX"
         elif live_st == "down":
-            # Feed disconnected / reconnecting (Yellow / Amber)
+            # Amber error/reconnecting
             bg_col = C_COMM_DOWN_BG
             txt_col = C_COMM_DOWN_TXT
             bdr_col = C_COMM_DOWN_BDR
             lbl_text = f"{name}: ERR"
         else:
-            # Idle / Quiet Carrier (Tactical Green)
-            bg_col = C_BTN_ON_BG
-            txt_col = C_BTN_ON_TXT
-            bdr_col = (0, 180, 90)
+            # Blue when idle/unmuted
+            bg_col = C_BTN_IDLE_BG
+            txt_col = C_BTN_IDLE_TXT
+            bdr_col = C_BTN_IDLE_BDR
             lbl_text = f"{name}: ON"
 
         pygame.draw.rect(screen, bg_col, b["rect"])

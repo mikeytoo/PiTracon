@@ -19,7 +19,7 @@ def load_config():
 def resolve_stream_url(mount):
     if mount in url_cache:
         return url_cache[mount]
-        
+
     pls_url = f"https://www.liveatc.net/play/{mount}.pls"
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
@@ -32,17 +32,16 @@ def resolve_stream_url(mount):
                     return url
     except Exception:
         pass
-        
+
     fallback = f"https://s1-fmt2.liveatc.net/{mount}"
     url_cache[mount] = fallback
     return fallback
 
-def write_status(state):
+def write_status(statuses):
     with status_lock:
-        feed_statuses = {"app": state, "twr": state, "sec": state}
         try:
             with open(STATE_FILE + ".tmp", "w") as sf:
-                json.dump(feed_statuses, sf)
+                json.dump(statuses, sf)
             os.replace(STATE_FILE + ".tmp", STATE_FILE)
         except Exception:
             pass
@@ -82,13 +81,13 @@ def audio_worker():
     initial_start = True
     while True:
         if initial_start:
-            write_status("down")
+            write_status({"app": "down", "twr": "down", "sec": "down"})
             initial_start = False
-            
+
         config = load_config()
         streams = config.get("audio_streams", [])
         volume = config.get("master_volume", 4.0)
-        
+
         feeds = []
         for stream in streams:
             stream_id = stream.get("id", "center")
@@ -96,25 +95,40 @@ def audio_worker():
             mounts = stream.get("mounts", [])
             for m in mounts:
                 feeds.append({"stream_id": stream_id, "role": role, "mount": m})
-                
+
         if not feeds:
+            write_status({"app": "idle", "twr": "idle", "sec": "idle"})
             time.sleep(5)
             continue
-            
+
         urls = [resolve_stream_url(f["mount"]) for f in feeds]
-        
+
         ffmpeg_cmd = ["ffmpeg", "-nostats", "-hide_banner"]
         filter_parts = []
         amix_inputs = []
-        
+
         with mute_lock:
             current_mutes = mute_states.copy()
-            
+
+        # Build granular status map based on active streams and mutes
+        current_statuses = {}
+        for f in feeds:
+            s_id = f["stream_id"]
+            if current_mutes.get(s_id, False):
+                current_statuses[s_id] = "muted"
+            else:
+                current_statuses[s_id] = "active"
+        
+        # Fill in any missing default slots
+        for s_id in ["app", "twr", "sec"]:
+            if s_id not in current_statuses:
+                current_statuses[s_id] = "idle"
+
         for idx, f in enumerate(feeds):
             ffmpeg_cmd.extend(["-i", urls[idx]])
             s_id = f["stream_id"]
             is_muted = current_mutes.get(s_id, False)
-            
+
             if is_muted:
                 pan = "c0=0|c1=0"
             else:
@@ -124,38 +138,57 @@ def audio_worker():
                     pan = "c1=c0"
                 else:
                     pan = "c0=0.7*c0|c1=0.7*c0"
-                
+
             filter_parts.append(f"[{idx}:a]pan=stereo|{pan}[a{idx}]")
             amix_inputs.append(f"[a{idx}]")
-            
+
         amix_str = "".join(amix_inputs) + f"amix=inputs={len(feeds)}:duration=longest:dropout_transition=0,volume={volume}[out]"
         filter_complex = "; ".join(filter_parts) + "; " + amix_str
-        
+
         ffmpeg_cmd.extend([
             "-filter_complex", filter_complex,
             "-map", "[out]",
             "-f", "alsa", "default"
         ])
-        
+
+        proc = None
         try:
             with open("/tmp/ffmpeg_atc.log", "w") as log_file:
                 proc = subprocess.Popen(ffmpeg_cmd, stdout=log_file, stderr=log_file)
-                # Quick stabilization sleep
                 time.sleep(0.5)
-                write_status("idle")
-                
+                write_status(current_statuses)
+
                 last_mutes = current_mutes.copy()
                 while proc.poll() is None:
-                    time.sleep(0.2)
+                    time.sleep(0.1)
                     with mute_lock:
                         current_mutes = mute_states.copy()
+                    
+                    # Update status map live if mutes shift
+                    updated_statuses = {}
+                    for f in feeds:
+                        s_id = f["stream_id"]
+                        if current_mutes.get(s_id, False):
+                            updated_statuses[s_id] = "muted"
+                        else:
+                            updated_statuses[s_id] = "active"
+                    for s_id in ["app", "twr", "sec"]:
+                        if s_id not in updated_statuses:
+                            updated_statuses[s_id] = "idle"
+                    write_status(updated_statuses)
+
                     if current_mutes != last_mutes:
                         proc.terminate()
+                        proc.wait()
                         break
-                        
+
         except Exception:
             pass
-            
+        finally:
+            if proc is not None and proc.poll() is None:
+                proc.terminate()
+                proc.wait()
+
         time.sleep(0.1)
 
 t_audio = threading.Thread(target=audio_worker, daemon=True)
