@@ -3,13 +3,19 @@ import sys, math, time, threading, urllib.request, json, os, socket, subprocess
 import pygame
 from evdev import InputDevice, ecodes
 
-# --- Display & Sector Geometry (Ekron, KY) ---
+# --- Display & Sector Geometry (Dynamic Config) ---
 SCREEN_W, SCREEN_H = 1920, 1280
 CENTER = (SCREEN_W // 2, SCREEN_H // 2)
 
-CENTER_LAT = 37.9300
-CENTER_LON = -86.1790
-POLL_RADIUS_NM = 65
+CONFIG_FILE = "/home/pi/PiTracon/config.json"
+with open(CONFIG_FILE, 'r') as f:
+    pitracon_config = json.load(f)
+
+sector_cfg = pitracon_config.get("sector", {})
+SECTOR_TITLE = sector_cfg.get("title", "TRACON TERMINAL RADAR")
+CENTER_LAT = sector_cfg.get("center_lat", 37.9300)
+CENTER_LON = sector_cfg.get("center_lon", -86.1790)
+POLL_RADIUS_NM = sector_cfg.get("poll_radius_nm", 65)
 COS_CENTER_LAT = math.cos(math.radians(CENTER_LAT))
 
 # Range Settings (Cyclable: 60 -> 45 -> 30 -> 15)
@@ -426,8 +432,7 @@ threading.Thread(target=route_worker, daemon=True).start()
 def adsb_worker():
     global last_api_status, selected_icao
     url = f"https://api.adsb.lol/v2/point/{CENTER_LAT:.4f}/{CENTER_LON:.4f}/{POLL_RADIUS_NM}"
-    headers = {'User-Agent': 'Mozilla/5.0'}
-
+    headers = {'User-Agent': f'PiTracon-Scope/1.0 ({SECTOR_TITLE})'}
     while running:
         try:
             req = urllib.request.Request(url, headers=headers)
@@ -502,6 +507,14 @@ font_strip_info2 = pygame.font.Font(None, 28)
 font_sys_title   = pygame.font.Font(None, 32)
 font_sys_body    = pygame.font.Font(None, 28)
 
+def project_latlon_to_pixels(lat, lon, range_nm):
+    d_lat = lat - CENTER_LAT
+    d_lon = lon - CENTER_LON
+    y_nm = -(d_lat * 60.04)
+    x_nm = d_lon * 60.04 * COS_CENTER_LAT
+    scale = (SCREEN_H // 2 - 40) / range_nm
+    return (int(CENTER[0] + x_nm * scale), int(CENTER[1] + y_nm * scale))
+
 # Pre-generate Radar Scope Surfaces
 scope_surfaces = {}
 
@@ -526,11 +539,29 @@ def build_scope_surface(range_nm):
         lbl = font_ring.render(f"{r_nm} NM", True, col)
         surf.blit(lbl, (CENTER[0] + 8, CENTER[1] - r_px + 8))
 
+    # Draw the main crosshairs and center dot
     pygame.draw.line(surf, C_GRID_DIM, (CENTER[0], 0), (CENTER[0], SCREEN_H), 1)
     pygame.draw.line(surf, C_GRID_DIM, (0, CENTER[1]), (SCREEN_W, CENTER[1]), 1)
     pygame.draw.circle(surf, C_GRID_BRIGHT, CENTER, 10, 2)
-    surf.blit(font_ui.render("TRACON TERMINAL RADAR - EKRON SECTOR", True, C_GRID_BRIGHT), (40, 40))
+
+    # --- INJECT RUNWAYS HERE ---
+    airports = pitracon_config.get("airports", [])
+    for apt in airports:
+        for rwy in apt.get("runways", []):
+            start_px = project_latlon_to_pixels(rwy["start_lat"], rwy["start_lon"], range_nm)
+            end_px = project_latlon_to_pixels(rwy["end_lat"], rwy["end_lon"], range_nm)
+            
+            # Draw the runway as a thick cyan line
+            pygame.draw.line(surf, C_ROUTE_CYAN, start_px, end_px, 3)
+            
+            # Label the airport ID near the runway
+            apt_lbl = font_tag.render(apt["id"], True, C_GRID_DIM)
+            surf.blit(apt_lbl, (start_px[0] + 5, start_px[1] - 15))
+    # ---------------------------
+
+    surf.blit(font_ui.render(SECTOR_TITLE, True, C_GRID_BRIGHT), (40, 40))
     return surf
+
 
 for r in RANGES:
     scope_surfaces[r] = build_scope_surface(r)
