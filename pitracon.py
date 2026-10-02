@@ -40,15 +40,15 @@ C_BTN_IDLE_BG  = (0, 17, 51)
 C_BTN_IDLE_TXT = (51, 153, 255)
 C_BTN_IDLE_BDR = (0, 68, 136)
 
+# Live RF Comm Receiving (Active Green)
+C_COMM_RX_BG   = (0, 100, 0)
+C_COMM_RX_TXT  = (0, 255, 0)
+C_COMM_RX_BDR  = (0, 255, 0)
+
 # Muted State (Tactical Red)
 C_BTN_MUT_BG   = (51, 17, 17)
 C_BTN_MUT_TXT  = (255, 102, 102)
 C_BTN_MUT_BDR  = (85, 34, 34)
-
-# Live RF Comm Receiving (Green)
-C_COMM_RX_BG   = (0, 51, 0)
-C_COMM_RX_TXT  = (0, 255, 0)
-C_COMM_RX_BDR  = (0, 255, 0)
 
 # Feed Down / Error (Amber)
 C_COMM_DOWN_BG  = (51, 34, 0)
