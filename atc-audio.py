@@ -16,13 +16,13 @@ try:
             mounts = stream.get("mounts", [])
             if s_id and mounts:
                 # Construct the full LiveATC URL using the first mount point
-                STREAMS[s_id] = f"http://s1-fmt2.liveatc.net/{mounts[0]}"
+                STREAMS[s_id] = f"http://d.liveatc.net/{mounts[0]}"
 except Exception:
     # Failsafe fallback if config is missing
     STREAMS = {
-        "app": "http://s1-fmt2.liveatc.net/ksdf_app_1",
-        "twr": "http://s1-fmt2.liveatc.net/ksdf_twr",
-        "sec": "http://s1-fmt2.liveatc.net/kind9_zid_125125"
+        "app": "http://d.liveatc.net/ksdf_app_1",
+        "twr": "http://d.liveatc.net/ksdf_twr",
+        "sec": "http://d.liveatc.net/kind9_zid_125125"
     }
 
 STATUS_FILE = "/tmp/atc_status.json"
@@ -52,6 +52,7 @@ def stream_worker(key, url):
 
         cmd = [
             "/usr/bin/mpv",
+            "--user-agent=VLC/3.0.16 LibVLC/3.0.16",
             "--no-video",
             "--profile=low-latency",
             "--ytdl=no",

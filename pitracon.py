@@ -644,11 +644,15 @@ while running:
         elif (now - shutdown_press_time) >= 2.0 and not shutdown_triggered:
             shutdown_triggered = True
             screen.fill((0, 0, 0))
-            msg = font_ui.render("SHUTTING DOWN SYSTEM...", True, (255, 70, 70))
+            msg = font_ui.render("RELEASE TO HALT...", True, (255, 195, 0))
             screen.blit(msg, (CENTER[0] - msg.get_width() // 2, CENTER[1] - msg.get_height() // 2))
             pygame.display.flip()
-            time.sleep(1.0)
-            subprocess.run(["/sbin/poweroff"])
+            
+            # Trap execution until the SiS controller clears the interrupt
+            while touch_is_down:
+                time.sleep(0.1)
+                
+            subprocess.run(["sudo", "shutdown", "-h", "now"])
             running = False
             break
     else:
